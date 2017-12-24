@@ -23,7 +23,7 @@ double dt = 0.01;
 //
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
-double v_ref = 30;
+double v_ref = 20;
 size_t x_start = 0;
 size_t y_start = x_start + N;
 size_t psi_start = y_start + N;
@@ -52,9 +52,9 @@ class FG_eval {
       // State Cost
       for (int t=0; t < N; t++)
       {
-          fg[0] += CppAD::pow(vars[cte_start+t],2);
-          fg[0] += CppAD::pow(vars[epsi_start+t],2);
-          fg[0] += CppAD::pow(vars[v_start+t]-v_ref,2);
+          fg[0] += 2*CppAD::pow(vars[cte_start+t],2);
+          fg[0] += 5*CppAD::pow(vars[epsi_start+t],2);
+          fg[0] += 0.1*CppAD::pow(vars[v_start+t]-v_ref,2);
       }
       
       // Input cost
@@ -146,7 +146,10 @@ class FG_eval {
 // MPC class definition implementation.
 //
 MPC::MPC() {
-    this->inputDelayPts = 15;
+    this->inputDelayPts = 0;
+    this->prev_delta = 0.0;
+    this->prev_a = 0.0;
+    this->latency = 0.0;
     this->outFileName = "MPC_refVel_" + std::to_string(v_ref) + "_inputDelayed_" + std::to_string(this->inputDelayPts) + "_latency_thrTuning.csv";
     ofstream myfile;
     myfile.open(outFileName);//,ios::app);
@@ -203,6 +206,21 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     for (i = a_start; i < n_vars; i++) {
         vars_lowerbound[i] = -1.0;
         vars_upperbound[i] =  1.0;
+    }
+    
+    // set constraint for latency
+    size_t fixed_step = (size_t)(latency/dt);
+//    std::cout << "Fixed Step is: " << fixed_step << std::endl;
+    for (int i = delta_start; i < delta_start + fixed_step; i++)
+    {
+        vars_lowerbound[i] = prev_delta;
+        vars_upperbound[i] = prev_delta;
+    }
+    
+    for (int i = a_start; i < a_start + fixed_step; i++)
+    {
+        vars_lowerbound[i] = prev_a;
+        vars_upperbound[i] = prev_a;
     }
     
   // Lower and upper limits for the constraints
@@ -287,7 +305,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     }
     return {solution.x[x_start + 1], solution.x[x_start + 1 + 1*N/5], solution.x[x_start + 1 + 2*N/5], solution.x[x_start + 1 + 3*N/5], solution.x[x_start + 1 + 4*N/5],
         solution.x[y_start + 1], solution.x[y_start + 1 + 1*N/5], solution.x[y_start + 1 + 2*N/5], solution.x[y_start + 1 + 3*N/5], solution.x[y_start + 1 + 4*N/5],
-        solution.x[delta_start + this->inputDelayPts],   solution.x[a_start + this->inputDelayPts]};
+        solution.x[delta_start + fixed_step],   solution.x[a_start + fixed_step]};
 }
 
 void MPC::writeToFile(Eigen::VectorXd state, double px, double py, double steer, double thr) {

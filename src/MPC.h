@@ -17,6 +17,9 @@ class MPC {
   vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
     string outFileName;
     int inputDelayPts;
+    double prev_delta;
+    double prev_a;
+    double latency;
     void writeToFile(Eigen::VectorXd state, double px, double py, double steer, double thr);
 };
 
